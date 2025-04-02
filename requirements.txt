@@ -1,8 +1,4 @@
-streamlit
-yt-dlp
-ffmpeg-python
-pytube
-os
-re
-time
-logging
+streamlit==1.32.0
+yt-dlp==2024.4.9
+ffmpeg-python==0.2.0
+pycryptodomex==3.20.0
