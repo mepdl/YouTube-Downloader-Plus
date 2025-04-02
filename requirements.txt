@@ -1,4 +1,7 @@
+# Requisitos mínimos
 streamlit==1.32.0
-yt-dlp==2024.4.9
+yt-dlp>=2024.6.4  # Versão mais recente com todas as correções
 ffmpeg-python==0.2.0
-pip install --upgrade yt-dlp
+
+# Para garantir a versão mais atualizada, execute:
+# pip install --upgrade yt-dlp
