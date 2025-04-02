@@ -2,7 +2,6 @@ import streamlit as st
 import yt_dlp
 import os
 import re
-import time
 from pathlib import Path
 from functools import partial
 
@@ -23,49 +22,61 @@ def progress_hook(progress_bar, d):
         except:
             pass
 
-def download_media(url, media_type, progress_bar):
-    """Baixa vídeo/áudio com configurações especiais"""
+def safe_download(url, ydl_opts):
+    """Executa o download com tratamento de erros robusto"""
     try:
-        ydl_opts = {
-            'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
-            'progress_hooks': [partial(progress_hook, progress_bar)],
-            'quiet': True,
-            'no_warnings': True,
-            # Configurações para contornar bloqueios
-            'extract_flat': False,
-            'ignoreerrors': True,
-            'cookiefile': 'cookies.txt',  # Opcional: usar cookies de login
-            'referer': 'https://www.youtube.com/',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'extractor_args': {
-                'youtube': {
-                    'skip': ['dash', 'hls'],
-                    'player_client': ['android', 'web']
-                }
-            },
-            'format': 'bestaudio/best' if media_type == "audio" else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-            'postprocessors': [{
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '192',
-            }] if media_type == "audio" else []
-        }
-
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
-            filename = ydl.prepare_filename(info)
-            if media_type == "audio":
-                filename = os.path.splitext(filename)[0] + '.mp3'
+            # Primeiro verifica se o vídeo está disponível
+            info = ydl.extract_info(url, download=False)
             
+            if not info:
+                return None, "Não foi possível obter informações do vídeo"
+            
+            # Executa o download
+            result = ydl.download([url])
+            if result != 0:
+                return None, "Falha no processo de download"
+            
+            filename = ydl.prepare_filename(info)
             return filename, None
-
+            
+    except yt_dlp.utils.DownloadError as e:
+        return None, f"Erro no download: {str(e)}"
+    except yt_dlp.utils.ExtractorError as e:
+        return None, f"Erro ao extrair informações: {str(e)}"
     except Exception as e:
-        return None, str(e)
+        return None, f"Erro inesperado: {str(e)}"
+
+def download_media(url, media_type, progress_bar):
+    """Configura e executa o download"""
+    ydl_opts = {
+        'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
+        'progress_hooks': [partial(progress_hook, progress_bar)],
+        'quiet': True,
+        'no_warnings': True,
+        'ignoreerrors': True,
+        'extractor_args': {'youtube': {'skip': ['hls']}},
+        'format': 'bestaudio/best' if media_type == "audio" else 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'postprocessors': [{
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': 'mp3',
+            'preferredquality': '192',
+        }] if media_type == "audio" else [],
+        'retries': 3,
+        'fragment_retries': 3,
+        'skip_unavailable_fragments': True
+    }
+
+    filename, error = safe_download(url, ydl_opts)
+    if filename and media_type == "audio":
+        filename = os.path.splitext(filename)[0] + '.mp3'
+    
+    return filename, error
 
 def main():
     st.set_page_config(page_title="YouTube Downloader Pro", page_icon="🎬")
     st.title("🎬 YouTube Downloader Pro")
-    st.write("Versão com proteção contra bloqueios do YouTube")
+    st.write("Versão com tratamento de erros aprimorado")
 
     url = st.text_input("URL do YouTube:", placeholder="https://www.youtube.com/watch?v=...")
     media_type = st.radio("Tipo de mídia:", ["Áudio MP3", "Vídeo MP4"])
@@ -103,15 +114,14 @@ def main():
                 else:
                     st.error(f"❌ Falha: {error}")
                     
-                    # Solução alternativa sugerida
-                    if "Sign in to confirm you're not a bot" in error:
-                        st.warning("""
-                        **Solução alternativa:**
-                        1. Acesse https://ytdl-org.github.io/youtube-dl/download.html
-                        2. Baixe o arquivo `cookies.txt` após fazer login no YouTube
-                        3. Coloque o arquivo na mesma pasta do aplicativo
-                        4. Tente novamente
-                        """)
+                    # Soluções alternativas
+                    st.warning("""
+                    **Tente estas soluções:**
+                    1. Verifique se a URL está correta
+                    2. Tente um vídeo diferente
+                    3. Atualize o yt-dlp: `pip install --upgrade yt-dlp`
+                    4. Espere alguns minutos e tente novamente
+                    """)
 
             progress_bar.empty()
 
