@@ -1,4 +1,4 @@
-yt-dlp
 streamlit
+yt-dlp
 ffmpeg-python
 pytube
